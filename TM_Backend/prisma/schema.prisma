@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id       Int     @id @default(autoincrement())
+  email    String  @unique
+  password String
+  bilties   Bilty[]
+  biltyCounter BiltyCounter?
+}
+
+model Bilty {
+  id               Int      @id @default(autoincrement())
+  biltyNumber      Int
+  consignorName    String
+  consignorGST     String?
+  consigneeName    String
+  consigneeGST     String?
+  vehicleNumber    String
+  driverName       String
+  driverPhone      String
+  goodsDescription String
+  quantity         Int
+  weight           Decimal
+  freight          Decimal
+  status           String
+  createdAt        DateTime @default(now())
+  userId           Int
+  user             User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, biltyNumber])
+}
+
+model BiltyCounter {
+  id        Int     @default(autoincrement())
+  userId    Int     @unique
+  lastBiltyNumber   Int   @default(0)
+  user             User     @relation(fields: [userId], references: [id])
+}
