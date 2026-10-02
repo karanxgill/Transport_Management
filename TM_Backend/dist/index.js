@@ -254,9 +254,24 @@ app.patch("/bilties/:id", auth_1.auth, async (req, res, next) => {
 app.get("/bilties", auth_1.auth, async (req, res, next) => {
     const page = Number(req.query.page ?? 1);
     const limit = Number(req.query.limit ?? 10);
+    const sort = req.query.sort ?? "createdAt";
+    const order = req.query.order ?? "desc";
+    const allowedSortFields = [
+        "createdAt",
+        "freight",
+        "biltyNumber"
+    ];
+    if (typeof sort !== "string" || !allowedSortFields.includes(String(sort))) {
+        return next(new AppError_1.AppError("invalid input", 400));
+    }
+    if (typeof order !== "string" || !["asc", "desc"].includes(String(order))) {
+        return next(new AppError_1.AppError("invalid input", 400));
+    }
     const status = req.query.status;
-    const search = req.query.search;
-    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 10 || limit > 100) {
+    const search = typeof req.query.search === "string"
+        ? req.query.search.trim()
+        : "";
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
         return next(new AppError_1.AppError("invalid input", 400));
     }
     if (status !== undefined && !["Created", "Pending", "Delivered"].includes(String(status))) {
@@ -269,28 +284,55 @@ app.get("/bilties", auth_1.auth, async (req, res, next) => {
     if (!userId) {
         return next(new AppError_1.AppError("please login", 401));
     }
+    const skip = (page - 1) * limit;
     try {
-        const filter = await client.bilty.findMany({
-            where: {
-                userId: parseInt(userId),
-                ...(status && {
-                    status: String(status)
-                }),
-                ...(search && {
-                    OR: [
-                        { vehicleNumber: { contains: String(search) } },
-                        { consignorGST: { contains: String(search) } },
-                        { consigneeName: { contains: String(search) } },
-                        { consigneeGST: { contains: String(search) } },
-                        { driverName: { contains: String(search) } },
-                        { driverPhone: { contains: String(search) } },
-                    ]
-                })
-            }
+        const where = {
+            userId: parseInt(userId),
+            ...(status && {
+                status: String(status)
+            }),
+            ...(search && {
+                OR: [
+                    { vehicleNumber: { contains: String(search) } },
+                    { consignorGST: { contains: String(search) } },
+                    { consigneeName: { contains: String(search) } },
+                    { consigneeGST: { contains: String(search) } },
+                    { driverName: { contains: String(search) } },
+                    { driverPhone: { contains: String(search) } },
+                ]
+            })
+        };
+        const biltyTransacction = await client.$transaction(async (tx) => {
+            const filteredBilties = await tx.bilty.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: [
+                    { [sort]: order },
+                    { id: "desc" }
+                ]
+            });
+            const totalBilties = await tx.bilty.count({
+                where,
+            });
+            const totalPages = Math.ceil(totalBilties / limit);
+            return {
+                filteredBilties,
+                totalBilties,
+                totalPages
+            };
+        }, {
+            maxWait: 10000,
+            timeout: 15000
         });
-        console.log(filter);
         res.status(200).json({
-            filter
+            bilties: biltyTransacction.filteredBilties,
+            paginationData: {
+                page: page,
+                limit: limit,
+                totalBilties: biltyTransacction.totalBilties,
+                totalPages: biltyTransacction.totalPages
+            }
         });
     }
     catch (err) {
