@@ -14,7 +14,7 @@ const adapter = new PrismaPg({
     connectionString: process.env.DATABASE_URL!,
 })
 
-const client = new PrismaClient({
+export const client = new PrismaClient({
     adapter,
 })
 
@@ -183,7 +183,8 @@ app.post("/create-bilty",auth, async (req, res,next)=>{
     
     if(bilty !== null){
         res.status(201).json({
-            message: "bilty created successfully"
+            message: "bilty created successfully",
+            bilty,
         })
     }else{
         return next(new AppError("internal server error", 500));
@@ -450,4 +451,4 @@ app.use((err:any,req:Request,res:Response,next:NextFunction)=>{
             })
 })
 
-app.listen(process.env.PORT!);
+export default app

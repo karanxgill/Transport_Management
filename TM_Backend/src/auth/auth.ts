@@ -8,10 +8,12 @@ export async function auth(req: Request, res: Response,next: NextFunction){
 
     const authHeader = req.headers.authorization;
 
-    if(!authHeader || typeof authHeader !== "string"){
+    if(!authHeader || typeof authHeader !== "string"||!authHeader?.startsWith("Bearer ")){
         return next(new AppError("token missing",401))
     }
-    const token = authHeader.split(" ")[1];
+    
+    const token = authHeader.slice(7).trim();
+
     if(!token){
         return next(new AppError("token missing",401))
     }
